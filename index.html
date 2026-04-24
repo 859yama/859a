@@ -460,7 +460,7 @@
 <!-- ── HEADER ── -->
 <div class="app-header">
   <h1>🎼 はちこく練習アシスト <span style="font-size:0.55rem;font-weight:400;opacity:0.5;letter-spacing:0.05em;vertical-align:middle">
-  v1.31</span></h1>
+  v1.32</span></h1>
   <div class="header-sync">
     <div class="sync-pill off" id="hdr-sync-pill">
       <div class="sync-dot"></div>
@@ -1402,6 +1402,7 @@ function onAttMemberSelect(memberId) {
   _attSelectMode = 'member';
   _bulkMemberId = memberId || null;
   if(memberId) {
+    localStorage.setItem('ensemble_last_att_member', memberId);
     renderBulkAttForMember(memberId);
   } else {
     showAttGridEmpty('上のリストからメンバーを選んでください');
@@ -1563,7 +1564,16 @@ function renderAdminAttendanceGrid() {
   // メンバーリストボックスを更新
   const msel = document.getElementById('att-member-select');
   if(msel) {
-    const prevVal = msel.value;
+    // localStorageから前回選択を復元（_bulkMemberIdが未設定の場合のみ）
+    if(!_bulkMemberId) {
+      const saved = localStorage.getItem('ensemble_last_att_member');
+      if(saved && data.members.find(m => m.id === saved)) {
+        _bulkMemberId  = saved;
+        _attSelectMode = 'member';
+        const r = document.getElementById('att-radio-member');
+        if(r) r.checked = true;
+      }
+    }
     msel.innerHTML = '<option value="">── メンバーを選んでください ──</option>' +
       data.members.map(m =>
         `<option value="${m.id}"${m.id===_bulkMemberId?' selected':''}>${esc(m.name)}</option>`
