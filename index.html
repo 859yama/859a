@@ -22,6 +22,11 @@
   .app-header { background: var(--ink); color: #f5f0e8; padding: 12px 16px 8px; text-align: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
   .app-header h1 { font-family: 'Playfair Display', serif; font-size: 1.2rem; letter-spacing: 0.04em; }
   .header-sync { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px; min-height: 18px; }
+  .hdr-link { font-size: 0.72rem; font-weight: 600; color: rgba(245,240,232,0.75); text-decoration: none;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 5px; padding: 3px 8px; letter-spacing: 0.03em; flex-shrink: 0;
+    transition: background 0.15s, color 0.15s; }
+  .hdr-link:hover { background: rgba(255,255,255,0.22); color: white; }
   .sync-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 0.68rem; padding: 2px 9px; border-radius: 20px; font-weight: 500; transition: all 0.3s; letter-spacing: 0.02em; }
   .sync-pill.idle    { background: rgba(255,255,255,0.08); color: #8a7f72; }
   .sync-pill.syncing { background: rgba(184,134,11,0.25);  color: #f0c040; }
@@ -460,8 +465,10 @@
 <!-- ── HEADER ── -->
 <div class="app-header">
   <h1>🎼 はちこく練習アシスト <span style="font-size:0.55rem;font-weight:400;opacity:0.5;letter-spacing:0.05em;vertical-align:middle">
-  v1.32</span></h1>
+  v1.33</span></h1>
   <div class="header-sync">
+    <a class="hdr-link" href="https://drive.google.com/drive/folders/1ilkRIp42Xl5j86rxCIt-yoswGpnVEt5r" target="_blank" rel="noopener">楽譜</a>
+    <a class="hdr-link" href="https://drive.google.com/drive/folders/1zF6V4UThq2dGL-AmopyciAW5xnjPajbB" target="_blank" rel="noopener">録音</a>
     <div class="sync-pill off" id="hdr-sync-pill">
       <div class="sync-dot"></div>
       <span id="hdr-sync-text">同期OFF</span>
