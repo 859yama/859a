@@ -119,6 +119,8 @@
   /* toast */
   .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(10px); background: rgba(26,26,46,0.92); color: #f5f0e8; padding: 9px 18px; border-radius: 24px; font-size: 0.8rem; font-weight: 500; z-index: 500; opacity: 0; transition: opacity 0.3s, transform 0.3s; pointer-events: none; white-space: nowrap; max-width: 90vw; text-align: center; }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.blink { animation: toastBlink 1s ease-in-out infinite; }
+  @keyframes toastBlink { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
   /* ── LOCK ── (定義は下部のキラキラブロックへ移動) */
   /* ロック時：編集UIを視覚的にdim（操作はJS側でガード） */
   body.locked .section input, body.locked .section textarea { opacity: 0.5; pointer-events: none; }
@@ -349,17 +351,6 @@
   .conflict-modal-btns .btn { flex: 1; padding: 10px; font-size: 0.85rem; border-radius: 9px; }
 
   /* ── 初回起動モーダル ── */
-  .init-modal-bg { position: fixed; inset: 0; background: rgba(26,26,46,0.72); z-index: 500; display: flex; align-items: center; justify-content: center; padding: 20px; }
-  .init-modal-bg.hidden { display: none; }
-  .init-modal { background: var(--paper); border-radius: 16px; padding: 28px 22px 24px; max-width: 400px; width: 100%; box-shadow: 0 8px 40px rgba(0,0,0,0.35); animation: slideUp 0.3s ease; }
-  .init-modal-icon { font-size: 2.4rem; text-align: center; margin-bottom: 10px; }
-  .init-modal-title { font-family: 'Playfair Display', serif; font-size: 1.1rem; font-weight: 700; text-align: center; margin-bottom: 8px; color: var(--ink); }
-  .init-modal-body { font-size: 0.82rem; color: var(--muted); text-align: center; line-height: 1.7; margin-bottom: 18px; }
-  .init-modal-check { display: flex; align-items: center; gap: 8px; background: var(--cream); border-radius: 8px; padding: 10px 12px; margin-bottom: 18px; cursor: pointer; }
-  .init-modal-check input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--sage); flex-shrink: 0; }
-  .init-modal-check span { font-size: 0.82rem; font-weight: 500; color: var(--ink); }
-  .init-modal-btns { display: flex; gap: 10px; }
-  .init-modal-btns .btn { flex: 1; padding: 11px; font-size: 0.88rem; border-radius: 9px; }
 
   /* ── 閲覧モード切替確認モーダル ── */
   .lock-confirm-bg { position: fixed; inset: 0; background: rgba(26,26,46,0.72); z-index: 600;
@@ -466,29 +457,10 @@
 </div>
 
 <!-- ── 初回起動モーダル ── -->
-<div id="init-modal-bg" class="init-modal-bg hidden">
-  <div class="init-modal">
-    <div class="init-modal-icon">☁️</div>
-    <div class="init-modal-title">最新データを読み込みますか？</div>
-    <div class="init-modal-body">
-      クラウドに保存されたデータがあります。<br>
-      読み込むと現在の（空の）データと置き換わります。
-    </div>
-    <label class="init-modal-check">
-      <input type="checkbox" id="init-auto-sync-check">
-      <span>常に最新データに自動同期する</span>
-    </label>
-    <div class="init-modal-btns">
-      <button class="btn btn-ghost" onclick="dismissInitModal()">スキップ</button>
-      <button class="btn init-safe" onclick="confirmInitModal()" style="background:#2d6a4f;color:white;font-weight:700">読み込む</button>
-    </div>
-  </div>
-</div>
-
 <!-- ── HEADER ── -->
 <div class="app-header">
   <h1>🎼 はちこく練習アシスト <span style="font-size:0.55rem;font-weight:400;opacity:0.5;letter-spacing:0.05em;vertical-align:middle">
-  v1.30</span></h1>
+  v1.31</span></h1>
   <div class="header-sync">
     <div class="sync-pill off" id="hdr-sync-pill">
       <div class="sync-dot"></div>
@@ -820,14 +792,15 @@
 // UTILS (最初に定義 - 他の関数から参照されるため)
 // ══════════════════════════════════════════════════════
 let _toastTimer = null;
-function showToast(msg, duration) {
+function showToast(msg, duration, blink) {
   duration = duration || 4000;
   const el = document.getElementById('toast');
   if (!el) return;
   el.textContent = msg;
+  el.classList.toggle('blink', !!blink);
   el.classList.add('show');
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(function() { el.classList.remove('show'); }, duration);
+  _toastTimer = setTimeout(function() { el.classList.remove('show'); el.classList.remove('blink'); }, duration);
 }
 
 function fmtDate(s) {
@@ -3346,25 +3319,6 @@ function copyGasCode(){
 // ══════════════════════════════════════════════════════
 // 初回起動モーダル
 // ══════════════════════════════════════════════════════
-function showInitModal() {
-  const bg = document.getElementById('init-modal-bg');
-  if(bg) bg.classList.remove('hidden');
-}
-function dismissInitModal() {
-  const bg = document.getElementById('init-modal-bg');
-  if(bg) bg.classList.add('hidden');
-}
-async function confirmInitModal() {
-  const wantAutoSync = document.getElementById('init-auto-sync-check')?.checked;
-  dismissInitModal();
-  if(wantAutoSync) {
-    autoSync = true;
-    localStorage.setItem(GAS_AUTO_KEY, '1');
-    applyAutoSyncState();
-    startPollTimer();
-  }
-  await syncPull('force');
-}
 
 // ══════════════════════════════════════════════════════
 // BOOT
@@ -3404,7 +3358,11 @@ if(_urlEl) _urlEl.value = getGasUrl();
 autoSync = true;
 localStorage.setItem(GAS_AUTO_KEY, '1');
 applyAutoSyncState();
-syncPull('force');
+showToast('☁️ データ読み込み中です…', 30000, true); // 点滅トースト（完了時に消す）
+syncPull('force').finally(function() {
+  const el = document.getElementById('toast');
+  if(el) { el.classList.remove('show'); el.classList.remove('blink'); }
+});
 startPollTimer();
 </script>
 <div id="toast" class="toast"></div>
