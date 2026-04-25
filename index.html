@@ -485,7 +485,7 @@
 <!-- ── HEADER ── -->
 <div class="app-header">
   <h1>はちこく練習アシスト <span style="font-size:0.55rem;font-weight:400;opacity:0.5;letter-spacing:0.05em;vertical-align:middle">
-  v1.36</span></h1>
+  v1.37</span></h1>
   <div class="header-sync">
     <a class="hdr-link" href="https://drive.google.com/drive/folders/1ilkRIp42Xl5j86rxCIt-yoswGpnVEt5r" target="_blank" rel="noopener">楽譜</a>
     <a class="hdr-link" href="https://drive.google.com/drive/folders/1zF6V4UThq2dGL-AmopyciAW5xnjPajbB" target="_blank" rel="noopener">録音</a>
@@ -1041,16 +1041,27 @@ function openAdminSecret() {
 }
 function renderAttLog() {
   const tbody = document.getElementById('att-log-tbody'); if(!tbody) return;
-  const log = data.attLog || [];
-  if(!log.length) {
+  const raw = data.attLog || [];
+  if(!raw.length) {
     tbody.innerHTML = '<tr><td colspan="3" style="color:#666;text-align:center;padding:16px">ログがありません</td></tr>';
     return;
   }
+  // 同dateStr×同memberName の1時間以内連続変更は最新だけ残す
+  const ONE_HOUR = 60 * 60 * 1000;
+  const seen = {}; // key: dateStr+memberName → 最新ts
+  const deduped = raw.filter(function(e) {
+    const key = e.dateStr + '|' + e.memberName;
+    // 既に同keyのエントリがあり、かつそれが1時間以内なら最新(raw先頭=最新順)を残す
+    if(seen[key] !== undefined && (seen[key] - e.ts) < ONE_HOUR) return false;
+    seen[key] = e.ts;
+    return true;
+  });
   const statusClass = { '◯':'present', '✕':'absent', '△':'undecided' };
-  tbody.innerHTML = log.map(e => {
+  // 日付ラベルから曜日を除去（例:「5月9日（土）」→「5月9日」）
+  tbody.innerHTML = deduped.map(function(e) {
     const sc = statusClass[e.status] || 'undecided';
-    const time = new Date(e.ts).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
-    return '<tr><td>' + esc(e.dateLabel) + '<br><span style="font-size:0.65rem;color:#666">' + time + '</span></td>'
+    const dlabel = e.dateLabel.replace(/（.）/, '');
+    return '<tr><td>' + esc(dlabel) + '</td>'
          + '<td>' + esc(e.memberName) + '</td>'
          + '<td><span class="att-log-status ' + sc + '">' + esc(e.status) + '</span></td></tr>';
   }).join('');
@@ -1438,7 +1449,6 @@ function wasPresent(did, memberId, songId) {
 // ── 出欠登録：ラジオ切替・リストボックス制御 ──
 let _attSelectMode = 'date'; // 'date' | 'member'
 let _bulkMemberId  = null;   // メンバーモード時の選択中memberId
-let _attMemberRestored = false; // localStorage復元済みフラグ（初回のみ）
 
 function onAttSelectModeChange(mode) {
   _attSelectMode = mode;
@@ -1541,11 +1551,13 @@ function buildBulkRow(d, memberId, setBulkFn) {
   const pBtn = document.createElement('button');
   pBtn.className = 'bulk-att-btn ' + (st==='present'?'present':'undecided');
   pBtn.textContent = '出席';
+  pBtn.dataset.status = 'present';
   pBtn.addEventListener('click', function(){ window[setBulkFn](d.id, memberId, 'present', this); });
 
   const aBtn = document.createElement('button');
   aBtn.className = 'bulk-att-btn ' + (st==='absent'?'absent':'undecided');
   aBtn.textContent = '欠席';
+  aBtn.dataset.status = 'absent';
   aBtn.addEventListener('click', function(){ window[setBulkFn](d.id, memberId, 'absent', this); });
 
   right.appendChild(cbtn);
@@ -1622,8 +1634,7 @@ function setBulkAtt2(dateId, memberId, newStatus, btn) {
   const row = btn.closest('.bulk-date-row');
   row.querySelectorAll('.bulk-att-btn').forEach(b => b.className = 'bulk-att-btn undecided');
   if(nextStatus !== 'undecided') {
-    const target = nextStatus === 'present' ? row.querySelector('.bulk-att-btn:first-child')
-                                            : row.querySelector('.bulk-att-btn:last-child');
+    const target = row.querySelector('.bulk-att-btn[data-status="'+nextStatus+'"]');
     if(target) target.className = 'bulk-att-btn ' + nextStatus;
   }
   if(dateId === selectedDateId) renderAdminAttendanceGrid();
@@ -1643,20 +1654,6 @@ function renderAdminAttendanceGrid() {
   // メンバーリストボックスを更新
   const msel = document.getElementById('att-member-select');
   if(msel) {
-    // 初回のみlocalStorageから前回選択を復元
-    // （ユーザーが日付側を選んでいる場合は _attSelectMode が 'date' なので上書きしない）
-    if(!_attMemberRestored) {
-      _attMemberRestored = true;
-      const saved = localStorage.getItem('ensemble_last_att_member');
-      if(saved && data.members.find(m => m.id === saved) && _attSelectMode !== 'date') {
-        _bulkMemberId  = saved;
-        _attSelectMode = 'member';
-        const r = document.getElementById('att-radio-member');
-        if(r) r.checked = true;
-        // 復元後にバルク入力を表示（setTimeout で select の innerHTML 更新後に実行）
-        setTimeout(() => renderBulkAttForMember(saved), 0);
-      }
-    }
     msel.innerHTML = '<option value="">── メンバーを選んでください ──</option>' +
       data.members.map(m =>
         `<option value="${m.id}"${m.id===_bulkMemberId?' selected':''}>${esc(m.name)}</option>`
@@ -2123,8 +2120,7 @@ function setBulkAtt(dateId, memberId, newStatus, btn) {
   const row = btn.closest('.bulk-date-row');
   row.querySelectorAll('.bulk-att-btn').forEach(b => b.className = 'bulk-att-btn undecided');
   if(nextStatus !== 'undecided') {
-    const target = nextStatus === 'present' ? row.querySelector('.bulk-att-btn:first-child')
-                                            : row.querySelector('.bulk-att-btn:last-child');
+    const target = row.querySelector('.bulk-att-btn[data-status="'+nextStatus+'"]');
     if(target) target.className = 'bulk-att-btn ' + nextStatus;
   }
 
@@ -3481,6 +3477,16 @@ showToast('☁️ データ読み込み中です…', 30000, true); // 点滅ト
 syncPull('force').finally(function() {
   const el = document.getElementById('toast');
   if(el) { el.classList.remove('show'); el.classList.remove('blink'); }
+  // 同期完了後にメンバー選択を復元（1回のみ）
+  const _savedMember = localStorage.getItem('ensemble_last_att_member');
+  if(_savedMember && data.members.find(function(m){ return m.id === _savedMember; })) {
+    _bulkMemberId  = _savedMember;
+    _attSelectMode = 'member';
+    renderAdminAttendanceGrid(); // selectを更新
+    const _r = document.getElementById('att-radio-member');
+    if(_r) _r.checked = true;
+    renderBulkAttForMember(_savedMember);
+  }
 });
 startPollTimer();
 </script>
