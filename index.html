@@ -368,6 +368,17 @@
   .lock-confirm-btns { display: flex; gap: 10px; margin-top: 18px; }
   .lock-confirm-btns .btn { flex: 1; padding: 11px; font-size: 0.88rem; border-radius: 9px; }
 
+  /* ── 秘密の管理画面モーダル ── */
+  .admin-secret-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 700;
+    display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .admin-secret-bg.hidden { display: none; }
+  .admin-secret { background: #1a1a2e; color: #e0e0e0; border-radius: 14px; padding: 24px 20px 20px;
+    max-width: 400px; width: 100%; box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+    animation: slideUp 0.2s ease; border: 1px solid #333; }
+  .admin-secret-title { font-size: 0.9rem; font-weight: 700; color: #a8d8bc; margin-bottom: 16px; letter-spacing: 0.05em; }
+  .admin-secret-body { font-size: 0.82rem; color: #999; margin-bottom: 20px; }
+  .admin-secret-footer { display: flex; justify-content: flex-end; }
+
   /* ── 一括出欠オーバーレイ ── */
   .overlay-bulk { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 300; align-items: flex-end; }
   .overlay-bulk.open { display: flex; }
@@ -465,7 +476,7 @@
 <!-- ── HEADER ── -->
 <div class="app-header">
   <h1>🎼 はちこく練習アシスト <span style="font-size:0.55rem;font-weight:400;opacity:0.5;letter-spacing:0.05em;vertical-align:middle">
-  v1.33</span></h1>
+  v1.35</span><button class="hdr-push-btn" id="hdr-push-btn" onclick="hdrSyncPush()" title="クラウドに今すぐ送信" style="margin-left:8px;vertical-align:middle">📡 保存<div class="hdr-push-ok" id="hdr-push-ok">✅</div></button></h1>
   <div class="header-sync">
     <a class="hdr-link" href="https://drive.google.com/drive/folders/1ilkRIp42Xl5j86rxCIt-yoswGpnVEt5r" target="_blank" rel="noopener">楽譜</a>
     <a class="hdr-link" href="https://drive.google.com/drive/folders/1zF6V4UThq2dGL-AmopyciAW5xnjPajbB" target="_blank" rel="noopener">録音</a>
@@ -474,11 +485,6 @@
       <span id="hdr-sync-text">同期OFF</span>
     </div>
     <button class="lock-btn lock-safe" id="lock-btn" onclick="toggleLock()"><span class="lock-icon">🔒</span> 閲覧中</button>
-    <span style="display:inline-block;width:18px;flex-shrink:0"></span>
-    <button class="hdr-push-btn" id="hdr-push-btn" onclick="hdrSyncPush()" title="クラウドに今すぐ送信">
-      📡 保存
-      <div class="hdr-push-ok" id="hdr-push-ok">✅</div>
-    </button>
   </div>
 </div>
 <div class="tab-bar">
@@ -615,7 +621,7 @@
     <div class="section">
       <div class="section-title">🎺 メンバーリスト</div>
       <div class="input-row">
-        <input type="text" id="new-member" placeholder="メンバー名を入力" />
+        <input type="text" id="new-member" placeholder="メンバー名を入力" oninput="checkSecretCommand(this)" />
         <button class="btn btn-primary" onclick="addMember()">追加</button>
       </div>
       <div id="member-list"></div>
@@ -739,6 +745,17 @@
     <div class="bulk-popup-name" id="bulk-member-name"></div>
     <div class="bulk-popup-sub">今日以降の日程の出欠をまとめて入力</div>
     <div id="bulk-date-list"></div>
+  </div>
+</div>
+
+<!-- ── 秘密の管理画面モーダル ── -->
+<div id="admin-secret-bg" class="admin-secret-bg hidden" onclick="if(event.target===this)closeAdminSecret()">
+  <div class="admin-secret">
+    <div class="admin-secret-title">🔧 管理画面</div>
+    <div class="admin-secret-body" id="admin-secret-body">（準備中）</div>
+    <div class="admin-secret-footer">
+      <button class="btn btn-ghost" style="color:#999;border-color:#555" onclick="closeAdminSecret()">閉じる</button>
+    </div>
   </div>
 </div>
 
@@ -991,6 +1008,21 @@ function startDrag(e, item, container, getArr, setArr, rerender) {
 // ══════════════════════════════════════════════════════
 // MEMBERS
 // ══════════════════════════════════════════════════════
+function checkSecretCommand(inp) {
+  if(inp.value === '管理') {
+    inp.value = ''; // 入力内容を消去（保存しない）
+    openAdminSecret();
+  }
+}
+function openAdminSecret() {
+  const bg = document.getElementById('admin-secret-bg');
+  if(bg) bg.classList.remove('hidden');
+}
+function closeAdminSecret() {
+  const bg = document.getElementById('admin-secret-bg');
+  if(bg) bg.classList.add('hidden');
+}
+
 function addMember() {
   if(editLocked) { lockTapWarn(); return; }
   const inp=document.getElementById('new-member');
@@ -1368,6 +1400,7 @@ function wasPresent(did, memberId, songId) {
 // ── 出欠登録：ラジオ切替・リストボックス制御 ──
 let _attSelectMode = 'date'; // 'date' | 'member'
 let _bulkMemberId  = null;   // メンバーモード時の選択中memberId
+let _attMemberRestored = false; // localStorage復元済みフラグ（初回のみ）
 
 function onAttSelectModeChange(mode) {
   _attSelectMode = mode;
@@ -1571,10 +1604,12 @@ function renderAdminAttendanceGrid() {
   // メンバーリストボックスを更新
   const msel = document.getElementById('att-member-select');
   if(msel) {
-    // localStorageから前回選択を復元（_bulkMemberIdが未設定の場合のみ）
-    if(!_bulkMemberId) {
+    // 初回のみlocalStorageから前回選択を復元
+    // （ユーザーが日付側を選んでいる場合は _attSelectMode が 'date' なので上書きしない）
+    if(!_attMemberRestored) {
+      _attMemberRestored = true;
       const saved = localStorage.getItem('ensemble_last_att_member');
-      if(saved && data.members.find(m => m.id === saved)) {
+      if(saved && data.members.find(m => m.id === saved) && _attSelectMode !== 'date') {
         _bulkMemberId  = saved;
         _attSelectMode = 'member';
         const r = document.getElementById('att-radio-member');
