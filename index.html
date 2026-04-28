@@ -465,6 +465,7 @@
   .part-name-label { font-size: 0.65rem; font-weight: 700; color: var(--muted); opacity: 0.8; vertical-align: middle; }
   .part-group { display: inline-flex; align-items: center; gap: 0; }
 </style>
+  <link rel="manifest" href="./manifest.json">
 </head>
 <body>
 
@@ -485,7 +486,7 @@
 <!-- ── HEADER ── -->
 <div class="app-header">
   <h1>はちこく練習アシスト <span style="font-size:0.55rem;font-weight:400;opacity:0.5;letter-spacing:0.05em;vertical-align:middle">
-  v1.37</span></h1>
+  v1.38</span></h1>
   <div class="header-sync">
     <a class="hdr-link" href="https://drive.google.com/drive/folders/1ilkRIp42Xl5j86rxCIt-yoswGpnVEt5r" target="_blank" rel="noopener">楽譜</a>
     <a class="hdr-link" href="https://drive.google.com/drive/folders/1zF6V4UThq2dGL-AmopyciAW5xnjPajbB" target="_blank" rel="noopener">録音</a>
@@ -3489,6 +3490,16 @@ syncPull('force').finally(function() {
   }
 });
 startPollTimer();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('./sw.js').then(function(registration) {
+      console.log('ServiceWorker registration successful');
+    }, function(err) {
+      console.log('ServiceWorker registration failed: ', err);
+    });
+  });
+}
 </script>
 <div id="toast" class="toast"></div>
 </body>
