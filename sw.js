@@ -1,4 +1,4 @@
-const CACHE_NAME = '48sea-cache-auto';
+const CACHE_NAME = '859-cache-auto';
 
 // インストール時に最低限キャッシュしておくもの
 // ※ここにはindex.htmlも含めておきます（初回インストール直後にオフラインになっても動くようにするため）
