@@ -7,7 +7,7 @@ const urlsToCache = [
   './manifest.json',
   './859Logo192.png',
   './859Logo512.png'
- ;
+ ];
 
 // 1. インストール時の処理
 self.addEventListener('install', (event) => {
