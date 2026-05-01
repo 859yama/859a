@@ -486,7 +486,7 @@
 <!-- ── HEADER ── -->
 <div class="app-header">
   <h1>はちこく練習アシスト <span style="font-size:0.55rem;font-weight:400;opacity:0.5;letter-spacing:0.05em;vertical-align:middle">
-  v1.39</span></h1>
+  v1.40</span></h1>
   <div class="header-sync">
     <a class="hdr-link" href="https://drive.google.com/drive/folders/1ilkRIp42Xl5j86rxCIt-yoswGpnVEt5r" target="_blank" rel="noopener">楽譜</a>
     <a class="hdr-link" href="https://drive.google.com/drive/folders/1zF6V4UThq2dGL-AmopyciAW5xnjPajbB" target="_blank" rel="noopener">録音</a>
@@ -972,6 +972,18 @@ function switchTab(name, btn) {
     const subBtn = document.getElementById('stab-'+lastSub);
     if(subBtn) switchSubTab(lastSub, subBtn);
     else switchSubTab('date', document.getElementById('stab-date'));
+    // 出欠登録：localStorageからメンバー選択を復元
+    const _savedMid = localStorage.getItem('ensemble_last_att_member');
+    if(_savedMid && data.members.find(function(m){ return m.id===_savedMid; })) {
+      _bulkMemberId  = _savedMid;
+      _attSelectMode = 'member';
+      const _r = document.getElementById('att-radio-member');
+      if(_r) _r.checked = true;
+      renderAdminAttendanceGrid(); // selectを更新してから
+      const _msel = document.getElementById('att-member-select');
+      if(_msel) _msel.value = _savedMid;
+      renderBulkAttForMember(_savedMid);
+    }
   }
 }
 
@@ -985,20 +997,6 @@ function switchSubTab(name, btn) {
   if(name==='date')   renderDateList();
   if(name==='song')   renderSongList();
   if(name==='member') renderMemberList();
-  if(name==='att') {
-    renderAdminAttendanceGrid();
-    // localStorageからメンバー選択を復元
-    const _savedMid = localStorage.getItem('ensemble_last_att_member');
-    if(_savedMid && data.members.find(function(m){ return m.id===_savedMid; })) {
-      const _r = document.getElementById('att-radio-member');
-      if(_r) _r.checked = true;
-      _attSelectMode = 'member';
-      _bulkMemberId  = _savedMid;
-      const _msel = document.getElementById('att-member-select');
-      if(_msel) _msel.value = _savedMid;
-      renderBulkAttForMember(_savedMid);
-    }
-  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -1063,23 +1061,43 @@ function renderAttLog() {
   }
   // 同dateStr×同memberName の1時間以内連続変更は最新だけ残す
   const ONE_HOUR = 60 * 60 * 1000;
-  const seen = {}; // key: dateStr+memberName → 最新ts
+  const seen = {};
   const deduped = raw.filter(function(e) {
     const key = e.dateStr + '|' + e.memberName;
-    // 既に同keyのエントリがあり、かつそれが1時間以内なら最新(raw先頭=最新順)を残す
     if(seen[key] !== undefined && (seen[key] - e.ts) < ONE_HOUR) return false;
     seen[key] = e.ts;
     return true;
   });
+  // 編集日（tsの日付）でグループ化
+  const groups = [];
+  const groupMap = {};
+  deduped.forEach(function(e) {
+    const d = new Date(e.ts);
+    const editDay = d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate();
+    if(!groupMap[editDay]) {
+      const g = { editDay: editDay, label: (d.getMonth()+1) + '月' + d.getDate() + '日', items: [] };
+      groups.push(g);
+      groupMap[editDay] = g;
+    }
+    groupMap[editDay].items.push(e);
+  });
   const statusClass = { '◯':'present', '✕':'absent', '△':'undecided' };
-  // 日付ラベルから曜日を除去（例:「5月9日（土）」→「5月9日」）
-  tbody.innerHTML = deduped.map(function(e) {
-    const sc = statusClass[e.status] || 'undecided';
-    const dlabel = e.dateLabel.replace(/（.）/, '');
-    return '<tr><td>' + esc(dlabel) + '</td>'
-         + '<td>' + esc(e.memberName) + '</td>'
-         + '<td><span class="att-log-status ' + sc + '">' + esc(e.status) + '</span></td></tr>';
-  }).join('');
+  let html = '';
+  groups.forEach(function(g) {
+    // 編集日ヘッダー行
+    html += '<tr><td colspan="3" style="background:#1e2a1e;color:#a8d8bc;font-size:0.68rem;font-weight:700;'
+          + 'padding:5px 8px;letter-spacing:0.05em;border-top:1px solid #333">📅 ' + esc(g.label) + ' の編集</td></tr>';
+    g.items.forEach(function(e) {
+      const sc = statusClass[e.status] || 'undecided';
+      const dlabel = e.dateLabel.replace(/（.）/, '');
+      html += '<tr>'
+            + '<td>' + esc(dlabel) + '</td>'
+            + '<td>' + esc(e.memberName) + '</td>'
+            + '<td><span class="att-log-status ' + sc + '">' + esc(e.status) + '</span></td>'
+            + '</tr>';
+    });
+  });
+  tbody.innerHTML = html;
 }
 function closeAdminSecret() {
   const bg = document.getElementById('admin-secret-bg');
